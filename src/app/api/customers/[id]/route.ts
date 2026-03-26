@@ -31,5 +31,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     };
   }
 
-  return NextResponse.json({ customer, snapshots, details });
+  const portfolioFiles = db.prepare(`
+    SELECT
+      pf.id,
+      pf.customer_id,
+      pf.snapshot_id,
+      pf.original_name,
+      pf.mime_type,
+      pf.file_size,
+      pf.note,
+      pf.created_at,
+      s.label AS snapshot_label,
+      ('/api/portfolio/file/' || pf.id) AS file_url
+    FROM portfolio_files pf
+    LEFT JOIN snapshots s ON s.id = pf.snapshot_id
+    WHERE pf.customer_id = ?
+    ORDER BY pf.created_at DESC
+  `).all(customerId);
+
+  return NextResponse.json({ customer, snapshots, details, portfolioFiles });
 }

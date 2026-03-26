@@ -18,6 +18,8 @@ interface Snapshot {
   net_assets: number;
   savings_capacity: number;
   insurance_premium: number;
+  total_assets?: number;
+  overall_return_rate?: number;
 }
 
 interface TrendPoint {
@@ -30,6 +32,8 @@ interface TrendPoint {
   debt: number;
   net_assets: number;
   real_estate: number;
+  total_assets?: number;
+  overall_return_rate?: number;
 }
 
 const COLORS = {
@@ -93,13 +97,14 @@ export function AssetCompositionChart({ snapshot }: { snapshot: Snapshot }) {
 }
 
 export function BalanceSheetChart({ snapshot }: { snapshot: Snapshot }) {
+  const totalAssets = snapshot.total_assets ?? snapshot.total_financial_assets + snapshot.real_estate_total;
   return (
     <Bar
       data={{
         labels: ["총 자산", "총 부채", "순자산"],
         datasets: [{
           label: "금액 (만원)",
-          data: [snapshot.total_financial_assets + snapshot.real_estate_total, snapshot.total_debt, snapshot.net_assets],
+          data: [totalAssets, snapshot.total_debt, snapshot.net_assets],
           backgroundColor: [COLORS.blue, COLORS.red, snapshot.net_assets >= 0 ? COLORS.green : COLORS.red],
           borderRadius: 8,
         }],
@@ -126,12 +131,40 @@ export function TrendChart({ trends }: { trends: TrendPoint[] }) {
           { label: "소득", data: trends.map(t => t.income), borderColor: COLORS.blue, backgroundColor: "rgba(59,130,246,0.1)", fill: true, tension: 0.3 },
           { label: "지출", data: trends.map(t => t.expense), borderColor: COLORS.red, backgroundColor: "rgba(239,68,68,0.1)", fill: true, tension: 0.3 },
           { label: "순자산", data: trends.map(t => t.net_assets), borderColor: COLORS.green, backgroundColor: "rgba(34,197,94,0.1)", fill: true, tension: 0.3 },
+          {
+            label: "총자산",
+            data: trends.map(t => t.total_assets ?? t.assets + t.real_estate),
+            borderColor: COLORS.indigo,
+            backgroundColor: "rgba(99,102,241,0.08)",
+            fill: false,
+            tension: 0.25,
+          },
+          {
+            label: "총자산 수익률(%)",
+            data: trends.map(t => t.overall_return_rate ?? 0),
+            borderColor: COLORS.purple,
+            backgroundColor: "rgba(139,92,246,0.12)",
+            borderDash: [6, 4],
+            yAxisID: "y1",
+            fill: false,
+            tension: 0.2,
+          },
         ],
       }}
       options={{
         responsive: true,
         plugins: { title: { display: true, text: "재무 추이 (만원)", font: { size: 16 } } },
-        scales: { y: { beginAtZero: true } },
+        scales: {
+          y: { beginAtZero: true, position: "left" },
+          y1: {
+            beginAtZero: true,
+            position: "right",
+            grid: { drawOnChartArea: false },
+            ticks: {
+              callback: (value) => `${value}%`,
+            },
+          },
+        },
       }}
     />
   );

@@ -18,9 +18,18 @@ interface Snapshot {
   total_financial_assets: number;
   real_estate_total: number;
   total_debt: number;
+  monthly_debt_payment: number;
   insurance_premium: number;
   net_assets: number;
   savings_capacity: number;
+  total_assets: number;
+  overall_return_rate: number;
+}
+
+function getTotalAssets(snapshot: Snapshot): number {
+  return snapshot.total_assets > 0
+    ? snapshot.total_assets
+    : snapshot.total_financial_assets + snapshot.real_estate_total;
 }
 
 function generateSwot(snapshots: Snapshot[]) {
@@ -37,12 +46,14 @@ function generateSwot(snapshots: Snapshot[]) {
   const income = latest.total_monthly_income;
   const expense = latest.total_expense;
   const savingsRate = income > 0 ? ((income - expense) / income) * 100 : 0;
-  const debtToAsset = latest.total_financial_assets > 0 ? (latest.total_debt / latest.total_financial_assets) * 100 : 0;
+  const latestTotalAssets = getTotalAssets(latest);
+  const debtToAsset = latestTotalAssets > 0 ? (latest.total_debt / latestTotalAssets) * 100 : 0;
 
   // Strengths
   if (savingsRate >= 30) strengths.push(`저축률 ${savingsRate.toFixed(1)}%로 우수한 저축 습관을 보유하고 있습니다.`);
   if (latest.net_assets > 0) strengths.push(`순자산이 ${latest.net_assets.toLocaleString()}만원으로 양(+)의 순자산을 유지하고 있습니다.`);
   if (latest.investment_assets > 0) strengths.push(`투자자산 ${latest.investment_assets.toLocaleString()}만원으로 자산 증식을 위한 투자를 하고 있습니다.`);
+  if (latest.overall_return_rate > 0) strengths.push(`총자산 수익률이 ${latest.overall_return_rate.toFixed(2)}%로 집계되었습니다.`);
   if (latest.insurance_premium > 0) strengths.push(`보장성 보험에 가입하여 리스크 관리를 하고 있습니다.`);
 
   // Weaknesses
@@ -63,6 +74,9 @@ function generateSwot(snapshots: Snapshot[]) {
     if (latest.net_assets > prev.net_assets) {
       opportunities.push(`순자산이 증가하고 있어 긍정적인 재무 흐름을 보이고 있습니다.`);
     }
+    if (latest.overall_return_rate > prev.overall_return_rate) {
+      opportunities.push(`총자산 수익률이 개선되었습니다. 포트폴리오 최적화를 이어가면 좋습니다.`);
+    }
   }
   if (savingsRate >= 20 && latest.investment_assets === 0) {
     opportunities.push(`저축률이 양호하므로 일부를 투자자산으로 전환하여 수익률을 높일 수 있습니다.`);
@@ -78,6 +92,9 @@ function generateSwot(snapshots: Snapshot[]) {
     }
     if (latest.net_assets < prev.net_assets) {
       threats.push(`순자산이 감소하고 있습니다. 자산 보전 전략이 필요합니다.`);
+    }
+    if (latest.overall_return_rate < prev.overall_return_rate) {
+      threats.push(`총자산 수익률이 하락했습니다. 자산 구성 점검이 필요합니다.`);
     }
   }
   if (latest.total_financial_assets > 0 && latest.safe_assets === 0) {
@@ -96,6 +113,57 @@ function generateSwot(snapshots: Snapshot[]) {
   return { strengths, weaknesses, opportunities, threats };
 }
 
+function buildHighlights(snapshots: Snapshot[]) {
+  if (snapshots.length === 0) {
+    return {
+      praise: ["아직 분석할 재무 데이터가 없습니다."],
+      improvements: ["첫 재무제표 업로드 후 맞춤 인사이트가 제공됩니다."],
+    };
+  }
+
+  const latest = snapshots[0];
+  const previous = snapshots.length > 1 ? snapshots[1] : null;
+
+  const savingsRate = latest.total_monthly_income > 0
+    ? (latest.savings_capacity / latest.total_monthly_income) * 100
+    : 0;
+  const latestTotalAssets = getTotalAssets(latest);
+  const debtRatio = latestTotalAssets > 0 ? (latest.total_debt / latestTotalAssets) * 100 : 0;
+
+  const praise: string[] = [];
+  const improvements: string[] = [];
+
+  if (latest.net_assets > 0) praise.push("순자산이 플러스 상태를 유지하고 있습니다.");
+  if (savingsRate >= 20) praise.push(`저축률이 ${savingsRate.toFixed(1)}%로 안정적입니다.`);
+  if (latest.overall_return_rate > 0) praise.push(`총자산 수익률 ${latest.overall_return_rate.toFixed(2)}%를 유지 중입니다.`);
+  if (previous && latest.total_debt < previous.total_debt) {
+    praise.push(`부채가 ${Math.abs(latest.total_debt - previous.total_debt).toLocaleString()}만원 감소했습니다.`);
+  }
+  if (previous && latest.total_monthly_income > previous.total_monthly_income) {
+    praise.push(`월 소득이 ${(latest.total_monthly_income - previous.total_monthly_income).toLocaleString()}만원 증가했습니다.`);
+  }
+
+  if (savingsRate < 20) improvements.push(`저축률이 ${savingsRate.toFixed(1)}%입니다. 20% 이상 확보를 목표로 조정해 보세요.`);
+  if (latest.total_monthly_income > 0 && latest.total_expense >= latest.total_monthly_income) {
+    improvements.push("지출이 소득과 비슷하거나 초과합니다. 변동지출부터 우선 조정이 필요합니다.");
+  }
+  if (debtRatio >= 40) improvements.push(`부채비율이 ${debtRatio.toFixed(1)}%입니다. 상환 우선순위를 재정리하세요.`);
+  if (latest.monthly_debt_payment > latest.total_monthly_income * 0.3 && latest.total_monthly_income > 0) {
+    improvements.push("월 부채상환 비중이 높습니다. 금리/만기 재조정을 검토해 보세요.");
+  }
+  if (latest.investment_assets > 0 && latest.overall_return_rate < 2) {
+    improvements.push("투자자산 수익률이 낮습니다. 저수익 상품 재배분을 검토하세요.");
+  }
+  if (previous && latest.net_assets < previous.net_assets) {
+    improvements.push("순자산이 직전 대비 감소했습니다. 고정비/부채/보험료를 함께 점검하세요.");
+  }
+
+  if (praise.length === 0) praise.push("현재 데이터 기준으로 추가 칭찬 포인트는 다음 점검 시 더 정확히 제공됩니다.");
+  if (improvements.length === 0) improvements.push("현재 데이터에서는 즉시 개선이 필요한 위험 신호가 크지 않습니다.");
+
+  return { praise, improvements };
+}
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -111,9 +179,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const snapshots = db.prepare("SELECT * FROM snapshots WHERE customer_id = ? ORDER BY snapshot_date DESC").all(customerId) as Snapshot[];
 
   const swot = generateSwot(snapshots);
+  const insights = buildHighlights(snapshots);
 
   // Trend data for charts
-  const trends = snapshots.reverse().map((s) => ({
+  const trends = [...snapshots].reverse().map((s) => ({
     date: s.snapshot_date,
     label: s.label,
     income: s.total_monthly_income,
@@ -123,7 +192,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     debt: s.total_debt,
     net_assets: s.net_assets,
     real_estate: s.real_estate_total,
+    total_assets: getTotalAssets(s),
+    overall_return_rate: s.overall_return_rate,
   }));
 
-  return NextResponse.json({ swot, trends, snapshotCount: snapshots.length });
+  return NextResponse.json({ swot, trends, insights, snapshotCount: snapshots.length });
 }

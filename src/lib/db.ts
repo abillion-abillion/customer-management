@@ -76,6 +76,8 @@ function initDb(db: Database.Database) {
       savings_capacity INTEGER DEFAULT 0,
       savings_ratio REAL DEFAULT 0,
       investment_ratio REAL DEFAULT 0,
+      total_assets INTEGER DEFAULT 0,
+      overall_return_rate REAL DEFAULT 0,
 
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (customer_id) REFERENCES customers(id)
@@ -147,12 +149,48 @@ function initDb(db: Database.Database) {
       premium INTEGER DEFAULT 0,
       FOREIGN KEY (snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS portfolio_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      snapshot_id INTEGER,
+      original_name TEXT NOT NULL,
+      stored_name TEXT NOT NULL,
+      relative_path TEXT NOT NULL,
+      mime_type TEXT,
+      file_size INTEGER DEFAULT 0,
+      note TEXT,
+      uploaded_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+      FOREIGN KEY (snapshot_id) REFERENCES snapshots(id) ON DELETE SET NULL,
+      FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_snapshots_customer_date ON snapshots(customer_id, snapshot_date DESC);
+    CREATE INDEX IF NOT EXISTS idx_portfolio_customer_date ON portfolio_files(customer_id, created_at DESC);
   `);
+
+  runMigrations(db);
 
   // Create default admin if not exists
   const admin = db.prepare("SELECT id FROM users WHERE username = ?").get("admin");
   if (!admin) {
     const hash = bcrypt.hashSync("admin1234", 10);
     db.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run("admin", hash, "admin");
+  }
+}
+
+function runMigrations(db: Database.Database) {
+  ensureColumn(db, "snapshots", "total_assets", "INTEGER DEFAULT 0");
+  ensureColumn(db, "snapshots", "overall_return_rate", "REAL DEFAULT 0");
+}
+
+function ensureColumn(db: Database.Database, tableName: string, columnName: string, definition: string) {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+  const exists = columns.some((column) => column.name === columnName);
+
+  if (!exists) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
   }
 }

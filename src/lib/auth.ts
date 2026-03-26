@@ -1,7 +1,14 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 
-const SECRET = process.env.JWT_SECRET || "financial-manager-secret-key-2024";
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error("JWT_SECRET must be set (recommended 32+ chars).");
+  }
+  return secret;
+}
+const SECRET = getJwtSecret();
 
 export interface TokenPayload {
   userId: number;
